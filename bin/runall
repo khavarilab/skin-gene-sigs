@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 
 import os
+import re
 import json
 import glob
 import argparse
 import pkg_resources
+
+import numpy as np
+import pandas as pd
 
 from src.annotations import get_proteincoding_gene_list_from_gtf
 from src.annotations import get_ensembl_to_geneid_mapping
@@ -57,7 +61,11 @@ def main():
     mapping_file = "{}/genes.pc.mappings.txt.gz".format(annot_dir)
     if not os.path.isfile(mapping_file):
         get_ensembl_to_geneid_mapping(pc_genes, mapping_file)
-            
+
+    # get TFs (Lambert et al resource)
+    tfs = pd.read_csv(args.inputs["annot"]["tfs"], sep="\t", comment="#")
+    tfs = tfs[tfs.iloc[:,3] == "Yes"]
+        
     # for each dataset, make matrices
     data_dirs = args.inputs["data"]
     datasets = ["lcm", "organotypic"] # TODO load organotypic also
@@ -100,24 +108,26 @@ def main():
         args.out_dir)
     lcm_diff_down_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_sigResultsDown.log2_thresh.txt.gz".format(
         args.out_dir)
-    make_gene_signature_file(
-        lcm_diff_file,
-        mapping_file,
-        lcm_progenitor_gene_sig_file,
-        filt_file=lcm_diff_down_file,
-        background_file=lcm_background_file)
+    if not os.path.isfile(lcm_progenitor_gene_sig_file):
+        make_gene_signature_file(
+            lcm_diff_file,
+            mapping_file,
+            lcm_progenitor_gene_sig_file,
+            filt_file=lcm_diff_down_file,
+            background_file=lcm_background_file)
     
     # generate LCM differentiated signature
     lcm_differentiated_gene_sig_file = "{}/gene_signature.lcm_differentiated.txt.gz".format(set_dir)
     lcm_diff_up_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_sigResultsUp.log2_thresh.txt.gz".format(
         args.out_dir)
-    make_gene_signature_file(
-        lcm_diff_file,
-        mapping_file,
-        lcm_differentiated_gene_sig_file,
-        filt_file=lcm_diff_up_file,
-        sort_ascending=False,
-        background_file=lcm_background_file)
+    if not os.path.isfile(lcm_differentiated_gene_sig_file):
+        make_gene_signature_file(
+            lcm_diff_file,
+            mapping_file,
+            lcm_differentiated_gene_sig_file,
+            filt_file=lcm_diff_up_file,
+            sort_ascending=False,
+            background_file=lcm_background_file)
     
     # generate organotypic differentiated signature
     organotypic_background_file = "{}/organotypic/matrices/tpms.pc.mat.txt.gz".format(args.out_dir)
@@ -126,16 +136,148 @@ def main():
         args.out_dir)
     organotypic_diff_up_file = "{}/organotypic/deseq2/organotypic.diff.d6-organotypic_over_d0-organotypic_sigResultsUp.log2_thresh.txt.gz".format(
         args.out_dir)
-    make_gene_signature_file(
-        organotypic_diff_file,
-        mapping_file,
-        organotypic_differentiated_gene_sig_file,
-        filt_file=organotypic_diff_up_file,
-        sort_ascending=False,
-        background_file=organotypic_background_file)
+    if not os.path.isfile(organotypic_differentiated_gene_sig_file):
+        make_gene_signature_file(
+            organotypic_diff_file,
+            mapping_file,
+            organotypic_differentiated_gene_sig_file,
+            filt_file=organotypic_diff_up_file,
+            sort_ascending=False,
+            background_file=organotypic_background_file)
 
     # build joint table for TFs
+    tf_dir = "{}/tfs".format(args.out_dir)
+    os.system("mkdir -p {}".format(tf_dir))
+
+    # load in lcm TPMs
+    lcm_tpms = "{}/lcm/matrices/tpms.pc.mat.txt.gz".format(args.out_dir)
+    tf_table = pd.read_csv(lcm_tpms, sep="\t")
+    tf_table = tf_table[tf_table["gene_id"].isin(tfs["ID"])]
+    tf_table = tf_table.set_index("gene_id")
+    tf_table.columns = ["LCM.tpm.basal", "LCM.tpm.suprabasal"]
+    tf_table["LCM.tpm.max"] = np.max(tf_table.values, axis=1)
     
+    # load in lcm expr and merge
+    lcm_expressed_file = "{}/lcm/matrices/tpms.pc.expr_filt.mat.txt.gz".format(args.out_dir)
+    lcm_expressed = pd.read_csv(lcm_expressed_file, sep="\t")
+    lcm_expressed["LCM.expressed"] = 1
+    lcm_expressed = lcm_expressed.set_index("gene_id")
+    lcm_expressed = lcm_expressed[["LCM.expressed"]]
+    tf_table = tf_table.merge(lcm_expressed, left_index=True, right_index=True, how="left")
+    tf_table.loc[tf_table["LCM.expressed"] != 1, "LCM.expressed"] = 0
+    
+    # load in lcm FCs and merge
+    lcm_deseq_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_resultsAll.txt.gz".format(
+        args.out_dir)
+    lcm_deseq = pd.read_csv(lcm_deseq_file, sep="\t")
+    lcm_deseq = lcm_deseq[["log2FoldChange"]]
+    lcm_deseq.columns = ["LCM.log2FC.suprabasal_over_basal"]
+    lcm_deseq["LCM.log2FC.max"] = np.max(np.abs(lcm_deseq.values), axis=1)
+    tf_table = tf_table.merge(lcm_deseq, left_index=True, right_index=True, how="left")
+
+    # load in sig info and merge
+    lcm_deseq_sig_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_sigResultsAll.log2_thresh.txt.gz".format(
+        args.out_dir)
+    lcm_deseq_sig = pd.read_csv(lcm_deseq_sig_file, sep="\t")
+    lcm_deseq_sig["LCM.diff.sig"] = 1
+    lcm_deseq_sig = lcm_deseq_sig[["LCM.diff.sig"]]
+    tf_table = tf_table.merge(lcm_deseq_sig, left_index=True, right_index=True, how="left")
+
+    # load in organotypic tpms and merge
+    organotypic_tpms = "{}/organotypic/matrices/tpms.pc.mat.txt.gz".format(args.out_dir)
+    tpms = pd.read_csv(organotypic_tpms, sep="\t")
+    tpms = tpms.set_index("gene_id")
+    tpms.columns = ["3D.tpm.d0", "3D.tpm.d3", "3D.tpm.d6"]
+    tpms["3D.tpm.max"] = np.max(tpms.values, axis=1)
+    tf_table = tf_table.merge(tpms, left_index=True, right_index=True, how="left")
+
+    # load in organotypic expressed and merge
+    organotypic_expressed_file = "{}/organotypic/matrices/tpms.pc.expr_filt.mat.txt.gz".format(args.out_dir)
+    organotypic_expressed = pd.read_csv(organotypic_expressed_file, sep="\t")
+    organotypic_expressed["3D.expressed"] = 1
+    organotypic_expressed = organotypic_expressed.set_index("gene_id")
+    organotypic_expressed = organotypic_expressed[["3D.expressed"]]
+    tf_table = tf_table.merge(organotypic_expressed, left_index=True, right_index=True, how="left")
+    tf_table.loc[tf_table["3D.expressed"] != 1, "3D.expressed"] = 0
+
+    # load in organotypic FCs and merge
+    organotypic_d3_d0_file = "{}/organotypic/deseq2/organotypic.diff.d3-organotypic_over_d0-organotypic_resultsAll.txt.gz".format(
+        args.out_dir)
+    organotypic_deseq = pd.read_csv(organotypic_d3_d0_file, sep="\t")
+    organotypic_deseq = organotypic_deseq[["log2FoldChange"]]
+    organotypic_deseq.columns = ["3D.log2FC.d3_over_d0"]
+    tf_table = tf_table.merge(organotypic_deseq, left_index=True, right_index=True, how="left")
+
+    organotypic_d6_d0_file = "{}/organotypic/deseq2/organotypic.diff.d6-organotypic_over_d0-organotypic_resultsAll.txt.gz".format(
+        args.out_dir)
+    organotypic_deseq = pd.read_csv(organotypic_d6_d0_file, sep="\t")
+    organotypic_deseq = organotypic_deseq[["log2FoldChange"]]
+    organotypic_deseq.columns = ["3D.log2FC.d6_over_d0"]
+    tf_table = tf_table.merge(organotypic_deseq, left_index=True, right_index=True, how="left")
+    tf_table["3D.log2FC.max"] = np.max(
+        np.abs(tf_table[["3D.log2FC.d3_over_d0", "3D.log2FC.d6_over_d0"]].values),
+        axis=1)
+    
+    # load in sig info and merge
+    organotypic_d3_d0_sig_file = "{}/organotypic/deseq2/organotypic.diff.d3-organotypic_over_d0-organotypic_sigResultsAll.log2_thresh.txt.gz".format(args.out_dir)
+    deseq_sig = pd.read_csv(organotypic_d3_d0_sig_file, sep="\t")
+    deseq_sig["3D.diff.d3_over_d0.sig"] = 1
+    deseq_sig = deseq_sig[["3D.diff.d3_over_d0.sig"]]
+    tf_table = tf_table.merge(deseq_sig, left_index=True, right_index=True, how="left")
+
+    organotypic_d6_d0_sig_file = "{}/organotypic/deseq2/organotypic.diff.d6-organotypic_over_d0-organotypic_sigResultsAll.log2_thresh.txt.gz".format(args.out_dir)
+    deseq_sig = pd.read_csv(organotypic_d6_d0_sig_file, sep="\t")
+    deseq_sig["3D.diff.d6_over_d0.sig"] = 1
+    deseq_sig = deseq_sig[["3D.diff.d6_over_d0.sig"]]
+    tf_table = tf_table.merge(deseq_sig, left_index=True, right_index=True, how="left")
+
+    # load GGR rlog norm vals and merge
+    ggr_rlog = args.inputs["data"]["ggr"]["rlog"]
+    rlog = pd.read_csv(ggr_rlog, sep="\t")
+    rlog.columns = ["GGR.{}".format(val) for val in rlog.columns]
+    tf_table = tf_table.merge(rlog, left_index=True, right_index=True, how="left")
+    tf_table["GGR.expressed"] = ~pd.isna(tf_table["GGR.d60"])
+    tf_table["GGR.expressed"] = tf_table["GGR.expressed"].astype(int)
+    
+    # load GGR dynamic and merge
+    ggr_dynamic_file = args.inputs["data"]["ggr"]["dynamic"]
+    ggr_dynamic = pd.read_csv(ggr_dynamic_file, sep="\t")
+    ggr_dynamic = ggr_dynamic.set_index("id")
+    ggr_dynamic.columns = ["GGR.dynamic.traj"]
+    tf_table = tf_table.merge(ggr_dynamic.astype(int), left_index=True, right_index=True, how="left")
+    
+    # add in hgnc
+    mappings = pd.read_csv(mapping_file, sep="\t")
+    mappings = mappings.set_index("ensembl_gene_id")
+    mappings = mappings["hgnc_symbol"]
+    mappings = mappings.drop_duplicates()
+    tf_table = tf_table.merge(mappings, left_index=True, right_index=True, how="left")
+
+    # reorder
+    columns = list(tf_table.columns)
+    columns = [columns[-1]] + columns[:-1]
+    tf_table = tf_table[columns]
+    
+    # save out
+    out_file = "{}/keratinocyte_tfs_summary.full.txt".format(tf_dir)
+    tf_table.to_csv(out_file, sep="\t")
+
+    # now filter: only keep if seen in at least one of the datasets
+    tf_table = tf_table.loc[
+        (tf_table["LCM.expressed"] > 0) |
+        (tf_table["3D.expressed"] > 0) |
+        (tf_table["GGR.expressed"] > 0)]
+
+    # and sort
+    tf_table = tf_table.sort_values(
+        ["GGR.dynamic.traj", "3D.expressed", "3D.log2FC.max"],
+        ascending=[False, False, False])
+    tf_table.insert(0, "ensembl_gene_id", tf_table.index.values)
+    tf_table = tf_table.reset_index(drop=True)
+
+    # and save
+    out_file = "{}/keratinocyte_tfs_summary.expressed.txt".format(tf_dir)
+    tf_table.to_csv(out_file, sep="\t")
     
     return
 

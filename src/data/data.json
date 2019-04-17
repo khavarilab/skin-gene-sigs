@@ -8,5 +8,10 @@
 	"primary_keratinocyte-d0.organotypic.Stanford_Khavari.RNA-seq",
 	"primary_keratinocyte-d3.organotypic.Stanford_Khavari.RNA-seq",
 	"primary_keratinocyte-d6.organotypic.Stanford_Khavari.RNA-seq"
-    ]
+    ],
+    "ggr": {
+	"rlog": "/mnt/lab_data/kundaje/users/dskim89/ggr/integrative/v1.0.0a/results/rna/timeseries/matrices/ggr.rna.counts.pc.expressed.timeseries_adj.pooled.rlog.mat.txt.gz",
+	"dynamic": "/mnt/lab_data/kundaje/users/dskim89/ggr/integrative/v1.0.0a/results/rna/timeseries/dp_gp/reproducible/hard/reordered/ggr.rna.reproducible.hard.reordered.clustering.txt"
+    }
+
 }

@@ -3,8 +3,6 @@
 import os
 
 
-
-
 def get_proteincoding_gene_list_from_gtf(gtf_file, out_file):
     """Using a gtf file of protein coding genes, extract ids
     Note that it leaves the decimals on there
@@ -39,3 +37,4 @@ def get_ensembl_to_geneid_mapping(ensembl_id_file, out_mapping_file):
     os.system(get_mappings)
     
     return None
+
