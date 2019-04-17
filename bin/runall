@@ -9,6 +9,10 @@ import pkg_resources
 from src.annotations import get_proteincoding_gene_list_from_gtf
 from src.annotations import get_ensembl_to_geneid_mapping
 from src.utils import make_matrix
+from src.utils import filter_by_ids
+from src.utils import filter_for_expressed
+from src.utils import run_sequential_deseq2
+from src.utils import make_gene_signature_file
 
 
 def parse_args():
@@ -56,31 +60,82 @@ def main():
             
     # for each dataset, make matrices
     data_dirs = args.inputs["data"]
-    datasets = ["lcm"] # TODO load organotypic also
+    datasets = ["lcm", "organotypic"] # TODO load organotypic also
     for dataset in datasets:
-
+        continue # debug
+        
         # make matrix
-        matrices_dir = "{}/matrices/{}".format(args.out_dir, dataset)
+        matrices_dir = "{}/{}/matrices".format(args.out_dir, dataset)
         os.system("mkdir -p {}".format(matrices_dir))
-        out_files = make_matrix(
+        mat_files = make_matrix(
             data_dirs[dataset],
             data_dirs["quant_main_dir"],
             matrices_dir)
 
         # filter matrices for protein coding
-        
-        
+        mat_pc_files = []
+        for mat_file in mat_files:
+            mat_pc_file = filter_by_ids(mat_file, pc_genes)
+            mat_pc_files.append(mat_pc_file)
+            
+        # filter for expressed (heuristic threshold)
+        mat_pc_filt_files = filter_for_expressed(mat_pc_files)
 
-    # filter for expressed (heuristic threshold)
-    
-    
-    
-    # then run diff exp on the matrices (protein coding matrix)
-    
+        # run differential expression on this matrix (counts only)
+        diff_dir = "{}/{}/deseq2".format(args.out_dir, dataset)
+        os.system("mkdir -p {}".format(diff_dir))
+        diff_prefix = "{}/{}.diff".format(diff_dir, dataset)
+        differential_genes_file = "{}/{}.diff.txt.gz".format(diff_dir, dataset)
+        run_sequential_deseq2(mat_pc_filt_files[1], diff_prefix)
 
-    # filter for TFs (expressed but also differential)
+    # set up for gene sets
+    set_dir = "{}/gene_sets".format(args.out_dir)
+    os.system("mkdir -p {}".format(set_dir))
+    
+    # generate LCM progenitor signature
+    lcm_background_file = "{}/lcm/matrices/tpms.pc.mat.txt.gz".format(args.out_dir)
+    lcm_progenitor_gene_sig_file = "{}/gene_signature.lcm_progenitor.txt.gz".format(set_dir)
+    lcm_diff_dir = "{}/lcm/deseq2".format(args.out_dir)
+    lcm_diff_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_sigResultsAll.log2_thresh.txt.gz".format(
+        args.out_dir)
+    lcm_diff_down_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_sigResultsDown.log2_thresh.txt.gz".format(
+        args.out_dir)
+    make_gene_signature_file(
+        lcm_diff_file,
+        mapping_file,
+        lcm_progenitor_gene_sig_file,
+        filt_file=lcm_diff_down_file,
+        background_file=lcm_background_file)
+    
+    # generate LCM differentiated signature
+    lcm_differentiated_gene_sig_file = "{}/gene_signature.lcm_differentiated.txt.gz".format(set_dir)
+    lcm_diff_up_file = "{}/lcm/deseq2/lcm.diff.suprabasal-LCM_over_basal-LCM_sigResultsUp.log2_thresh.txt.gz".format(
+        args.out_dir)
+    make_gene_signature_file(
+        lcm_diff_file,
+        mapping_file,
+        lcm_differentiated_gene_sig_file,
+        filt_file=lcm_diff_up_file,
+        sort_ascending=False,
+        background_file=lcm_background_file)
+    
+    # generate organotypic differentiated signature
+    organotypic_background_file = "{}/organotypic/matrices/tpms.pc.mat.txt.gz".format(args.out_dir)
+    organotypic_differentiated_gene_sig_file = "{}/gene_signature.organotypic_differentiated.txt.gz".format(set_dir)
+    organotypic_diff_file = "{}/organotypic/deseq2/organotypic.diff.d6-organotypic_over_d0-organotypic_sigResultsAll.log2_thresh.txt.gz".format(
+        args.out_dir)
+    organotypic_diff_up_file = "{}/organotypic/deseq2/organotypic.diff.d6-organotypic_over_d0-organotypic_sigResultsUp.log2_thresh.txt.gz".format(
+        args.out_dir)
+    make_gene_signature_file(
+        organotypic_diff_file,
+        mapping_file,
+        organotypic_differentiated_gene_sig_file,
+        filt_file=organotypic_diff_up_file,
+        sort_ascending=False,
+        background_file=organotypic_background_file)
 
-
+    # build joint table for TFs
+    
     
     return
 

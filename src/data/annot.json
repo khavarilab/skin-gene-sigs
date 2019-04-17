@@ -1,3 +1,4 @@
 {
-    "gtf": "/mnt/data/annotations/by_release/hg19.GRCh37/GENCODE_ann/gencode.v19.annotation.gtf"
+    "gtf": "/mnt/data/annotations/by_release/hg19.GRCh37/GENCODE_ann/gencode.v19.annotation.gtf",
+    "tfs": "/mnt/lab_data/kundaje/users/dskim89/annotations/lambert_tf_catalog/tfs.lambert_assessment.txt"
 }
