@@ -70,7 +70,6 @@ def main():
     data_dirs = args.inputs["data"]
     datasets = ["lcm", "organotypic"] # TODO load organotypic also
     for dataset in datasets:
-        continue # debug
         
         # make matrix
         matrices_dir = "{}/{}/matrices".format(args.out_dir, dataset)
