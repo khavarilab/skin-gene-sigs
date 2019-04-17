@@ -39,7 +39,9 @@ def make_matrix(
             all_counts = all_counts.merge(counts, on="gene_id")
 
     # move gene ids to index and save out
+    all_tpms["gene_id"] = all_tpms["gene_id"].str.split(".").str[0]
     all_tpms = all_tpms.set_index("gene_id")
+    all_counts["gene_id"] = all_counts["gene_id"].str.split(".").str[0]
     all_counts = all_counts.set_index("gene_id").astype(int)
 
     # save out
@@ -48,4 +50,12 @@ def make_matrix(
     counts_file = "{}/counts.mat.txt.gz".format(out_dir)
     all_counts.to_csv(counts_file, sep="\t", compression="gzip")
     
+    return
+
+
+def filter_by_ids(matrix_file, filter_list_file):
+    """filter file
+    """
+    
+
     return

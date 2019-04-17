@@ -6,6 +6,8 @@ import glob
 import argparse
 import pkg_resources
 
+from src.annotations import get_proteincoding_gene_list_from_gtf
+from src.annotations import get_ensembl_to_geneid_mapping
 from src.utils import make_matrix
 
 
@@ -39,18 +41,35 @@ def main():
         with open(json_file, 'r') as fp:
             args.inputs[key_name] = json.load(fp)
             
+    # get list of protein coding ids
+    annot_dir = "{}/annotations".format(args.out_dir)
+    os.system("mkdir -p {}".format(annot_dir))
+    pc_genes = "{}/genes.pc.txt.gz".format(annot_dir)
+    if not os.path.isfile(pc_genes):
+        get_proteincoding_gene_list_from_gtf(
+            args.inputs["annot"]["gtf"], pc_genes)
+    
+    # get gene id conversions
+    mapping_file = "{}/genes.pc.mappings.txt.gz".format(annot_dir)
+    if not os.path.isfile(mapping_file):
+        get_ensembl_to_geneid_mapping(pc_genes, mapping_file)
+            
     # for each dataset, make matrices
     data_dirs = args.inputs["data"]
-    dataset = "lcm"
-    matrices_dir = "{}/matrices/{}".format(args.out_dir, dataset)
-    os.system("mkdir -p {}".format(matrices_dir))
-    out_files = make_matrix(
-        data_dirs[dataset],
-        data_dirs["quant_main_dir"],
-        matrices_dir)
+    datasets = ["lcm"] # TODO load organotypic also
+    for dataset in datasets:
 
-    # filter matrices for protein coding
-    
+        # make matrix
+        matrices_dir = "{}/matrices/{}".format(args.out_dir, dataset)
+        os.system("mkdir -p {}".format(matrices_dir))
+        out_files = make_matrix(
+            data_dirs[dataset],
+            data_dirs["quant_main_dir"],
+            matrices_dir)
+
+        # filter matrices for protein coding
+        
+        
 
     # filter for expressed (heuristic threshold)
     
