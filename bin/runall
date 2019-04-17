@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+
+import os
+import json
+import glob
+import argparse
+import pkg_resources
+
+from src.utils import make_matrix
+
+
+def parse_args():
+    """set up args
+    """
+    parser = argparse.ArgumentParser(
+        description='make gene sets')
+    parser.add_argument(
+        "-o", "--out_dir", dest="out_dir", type=str, default=os.getcwd(),
+        help = "Output directory (default: current dir)")
+
+    args = parser.parse_args()
+    
+    return args
+
+
+def main():
+    """run all
+    """
+    # parse args
+    args = parse_args()
+    os.system("mkdir -p {}".format(args.out_dir))
+
+    # load inputs
+    args.inputs = {}
+    json_files = glob.glob(
+        pkg_resources.resource_filename("src", 'data/*.json'))
+    for json_file in json_files:
+        key_name = os.path.basename(json_file).split('.json')[0]
+        with open(json_file, 'r') as fp:
+            args.inputs[key_name] = json.load(fp)
+            
+    # for each dataset, make matrices
+    data_dirs = args.inputs["data"]
+    dataset = "lcm"
+    matrices_dir = "{}/matrices/{}".format(args.out_dir, dataset)
+    os.system("mkdir -p {}".format(matrices_dir))
+    out_files = make_matrix(
+        data_dirs[dataset],
+        data_dirs["quant_main_dir"],
+        matrices_dir)
+
+    # filter matrices for protein coding
+    
+
+    # filter for expressed (heuristic threshold)
+    
+    
+    
+    # then run diff exp on the matrices (protein coding matrix)
+    
+
+    # filter for TFs (expressed but also differential)
+
+
+    
+    return
+
+
+if __name__ == '__main__':
+    main()

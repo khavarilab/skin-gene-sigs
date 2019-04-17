@@ -1,0 +1,12 @@
+{
+    "quant_main_dir": "/mnt/lab_data/kundaje/projects/skin/data/bds/processed.rna.2019-04-16.khavari/quant",
+    "lcm": [
+	"primary_keratinocyte-basal.LCM.Stanford_Khavari.RNA-seq",
+	"primary_keratinocyte-suprabasal.LCM.Stanford_Khavari.RNA-seq"
+    ],
+    "organotypic": [
+	"primary_keratinocyte-d0.organotypic.Stanford_Khavari.RNA-seq",
+	"primary_keratinocyte-d3.organotypic.Stanford_Khavari.RNA-seq",
+	"primary_keratinocyte-d6.organotypic.Stanford_Khavari.RNA-seq"
+    ]
+}
