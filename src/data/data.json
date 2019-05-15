@@ -12,6 +12,10 @@
     "ggr": {
 	"rlog": "/mnt/lab_data/kundaje/users/dskim89/ggr/integrative/v1.0.0a/results/rna/timeseries/matrices/ggr.rna.counts.pc.expressed.timeseries_adj.pooled.rlog.mat.txt.gz",
 	"dynamic": "/mnt/lab_data/kundaje/users/dskim89/ggr/integrative/v1.0.0a/results/rna/timeseries/dp_gp/reproducible/hard/reordered/ggr.rna.reproducible.hard.reordered.clustering.txt"
+    },
+    "patient_singlecell": {
+	"dir": "/mnt/lab_data/kundaje/users/dskim89/labmembers/andrewji",
+	"log_vals": "kc_norm_all_subpop_avg_exp_mat.txt",
+	"dynamic": "kc_norm_diff_vs_basal_exp.txt"
     }
-
 }

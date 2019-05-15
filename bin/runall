@@ -92,8 +92,8 @@ def main():
         diff_dir = "{}/{}/deseq2".format(args.out_dir, dataset)
         os.system("mkdir -p {}".format(diff_dir))
         diff_prefix = "{}/{}.diff".format(diff_dir, dataset)
-        differential_genes_file = "{}/{}.diff.txt.gz".format(diff_dir, dataset)
-        run_sequential_deseq2(mat_pc_filt_files[1], diff_prefix)
+        if False:
+            run_sequential_deseq2(mat_pc_filt_files[1], diff_prefix)
 
     # set up for gene sets
     set_dir = "{}/gene_sets".format(args.out_dir)
@@ -234,6 +234,7 @@ def main():
     ggr_rlog = args.inputs["data"]["ggr"]["rlog"]
     rlog = pd.read_csv(ggr_rlog, sep="\t")
     rlog.columns = ["GGR.{}".format(val) for val in rlog.columns]
+    rlog["GGR.max"] = np.max(rlog.values, axis=1)
     tf_table = tf_table.merge(rlog, left_index=True, right_index=True, how="left")
     tf_table["GGR.expressed"] = ~pd.isna(tf_table["GGR.d60"])
     tf_table["GGR.expressed"] = tf_table["GGR.expressed"].astype(int)
@@ -247,15 +248,30 @@ def main():
     
     # add in hgnc
     mappings = pd.read_csv(mapping_file, sep="\t")
-    mappings = mappings.set_index("ensembl_gene_id")
-    mappings = mappings["hgnc_symbol"]
+    mappings.index = mappings["ensembl_gene_id"].values
+    mappings = mappings[["hgnc_symbol", "ensembl_gene_id"]]
     mappings = mappings.drop_duplicates()
     tf_table = tf_table.merge(mappings, left_index=True, right_index=True, how="left")
-
-    # reorder
-    columns = list(tf_table.columns)
-    columns = [columns[-1]] + columns[:-1]
-    tf_table = tf_table[columns]
+    
+    # load in patient scRNA-seq data differential results
+    sc_dir = args.inputs["data"]["patient_singlecell"]["dir"]    
+    sc_diff = pd.read_csv("{}/{}".format(
+        sc_dir, args.inputs["data"]["patient_singlecell"]["dynamic"]), sep="\t")
+    sc_diff = sc_diff[["p_val", "avg_logFC", "pct.1", "pct.2", "p_val_adj"]]
+    sc_diff.columns = ["sc.{}".format(val) for val in sc_diff.columns]
+    sc_diff["sc.diff"] = (sc_diff["sc.p_val_adj"] < 0.05).astype(int)
+    sc_diff["sc.diff.logFC"] = sc_diff["sc.diff"].values * (sc_diff["sc.avg_logFC"] > 0.5).values.astype(int)
+    sc_diff["hgnc_symbol"] = sc_diff.index.values
+    tf_table = tf_table.merge(sc_diff, on="hgnc_symbol", how="left")
+    tf_table["sc.diff"] = tf_table["sc.diff"].fillna(0)
+    
+    # load in patient scRNA-seq data log vals and merge
+    sc_log_vals = pd.read_csv("{}/{}".format(
+        sc_dir, args.inputs["data"]["patient_singlecell"]["log_vals"]), sep="\t")
+    sc_log_vals.columns = ["sc.{}".format(val) for val in sc_log_vals.columns]
+    sc_log_vals["sc.max"] = np.max(sc_log_vals.values, axis=1)
+    sc_log_vals["hgnc_symbol"] = sc_log_vals.index.values
+    tf_table = tf_table.merge(sc_log_vals, on="hgnc_symbol", how="left")
     
     # save out
     out_file = "{}/keratinocyte_tfs_summary.full.txt".format(tf_dir)
@@ -265,13 +281,15 @@ def main():
     tf_table = tf_table.loc[
         (tf_table["LCM.expressed"] > 0) |
         (tf_table["3D.expressed"] > 0) |
-        (tf_table["GGR.expressed"] > 0)]
+        (tf_table["GGR.expressed"] > 0) |
+        (tf_table["sc.Basal_Avg"] > 0) |
+        (tf_table["sc.Diff_Avg"] > 0)]
 
     # and sort
     tf_table = tf_table.sort_values(
-        ["GGR.dynamic.traj", "3D.expressed", "3D.log2FC.max"],
-        ascending=[False, False, False])
-    tf_table.insert(0, "ensembl_gene_id", tf_table.index.values)
+        ["sc.diff", "GGR.dynamic.traj", "3D.diff.d6_over_d0.sig", "LCM.diff.sig", "sc.max"],
+        ascending=[False, False, False, False, False])
+    #tf_table.insert(0, "ensembl_gene_id", tf_table.index.values)
     tf_table = tf_table.reset_index(drop=True)
 
     # and save
