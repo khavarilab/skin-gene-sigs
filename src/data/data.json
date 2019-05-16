@@ -17,5 +17,6 @@
 	"dir": "/mnt/lab_data/kundaje/users/dskim89/labmembers/andrewji",
 	"log_vals": "kc_norm_all_subpop_avg_exp_mat.txt",
 	"dynamic": "kc_norm_diff_vs_basal_exp.txt"
-    }
+    },
+    "lit_review": "/mnt/lab_data/kundaje/users/dskim89/annotations/skin/litreview_TFs.tsv"
 }

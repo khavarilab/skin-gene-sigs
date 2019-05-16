@@ -101,6 +101,18 @@ def filter_for_expressed(mat_pc_files, threshold=1):
     return tpm_filt_file, count_filt_file
 
 
+def filter_scRNA_for_expressed(sc_vals_file, threshold=0.05):
+    """vis in R (to confirm empirical cutoff) and cut here
+    """
+    # plot to confirm
+    plot_file = "{}.log2.expr_distr.pdf".format(sc_vals_file.split(".mat")[0])
+    plot_cmd = "plot.gene_expr_distr.singlecell.R {} {}".format(sc_vals_file, plot_file)
+    print plot_cmd
+    os.system(plot_cmd)
+    
+    return None
+
+
 def run_sequential_deseq2(counts_file, out_prefix, fdr_cutoff=0.20):
     """go to R
     """

@@ -15,6 +15,7 @@ from src.annotations import get_ensembl_to_geneid_mapping
 from src.utils import make_matrix
 from src.utils import filter_by_ids
 from src.utils import filter_for_expressed
+from src.utils import filter_scRNA_for_expressed
 from src.utils import run_sequential_deseq2
 from src.utils import make_gene_signature_file
 
@@ -264,6 +265,16 @@ def main():
     sc_diff["hgnc_symbol"] = sc_diff.index.values
     tf_table = tf_table.merge(sc_diff, on="hgnc_symbol", how="left")
     tf_table["sc.diff"] = tf_table["sc.diff"].fillna(0)
+
+    # filter patient scRNA-seq for expressed
+    # NOTE - did not complete this analysis because empirical distribution does not
+    # show clear distinction between expressed/unexpressed
+    if False:
+        filter_scRNA_for_expressed(
+            "{}/{}".format(
+                sc_dir,
+                args.inputs["data"]["patient_singlecell"]["log_vals"]),
+            threshold=0.05)
     
     # load in patient scRNA-seq data log vals and merge
     sc_log_vals = pd.read_csv("{}/{}".format(
@@ -272,6 +283,21 @@ def main():
     sc_log_vals["sc.max"] = np.max(sc_log_vals.values, axis=1)
     sc_log_vals["hgnc_symbol"] = sc_log_vals.index.values
     tf_table = tf_table.merge(sc_log_vals, on="hgnc_symbol", how="left")
+
+    # add in percentile cutoff
+    max_vals = tf_table["sc.max"].values
+    max_vals = max_vals[~np.isnan(max_vals)]
+    sc_cutoff_val = np.percentile(max_vals, 60)
+    print sc_cutoff_val
+    tf_table["sc.percentile_cutoff"] = (tf_table["sc.max"] > sc_cutoff_val).values.astype(int)
+    
+    # load in lit review info
+    lit_review = pd.read_csv(args.inputs["data"]["lit_review"], sep="\t")
+    lit_review = lit_review[["HGNC ID"]]
+    lit_review.columns = ["hgnc_symbol"]
+    lit_review["hgnc_symbol"] = [val.upper() for val in lit_review["hgnc_symbol"].values]
+    lit_review["litreview.present"] = 1
+    tf_table = tf_table.merge(lit_review, on="hgnc_symbol", how="left")
     
     # save out
     out_file = "{}/keratinocyte_tfs_summary.full.txt".format(tf_dir)
@@ -287,8 +313,14 @@ def main():
 
     # and sort
     tf_table = tf_table.sort_values(
-        ["sc.diff", "GGR.dynamic.traj", "3D.diff.d6_over_d0.sig", "LCM.diff.sig", "sc.max"],
-        ascending=[False, False, False, False, False])
+        ["litreview.present",
+         "sc.percentile_cutoff",
+         "sc.diff",
+         "GGR.dynamic.traj",
+         "3D.diff.d6_over_d0.sig",
+         "LCM.diff.sig",
+         "sc.max"],
+        ascending=[False, False, False, False, False, False, False])
     #tf_table.insert(0, "ensembl_gene_id", tf_table.index.values)
     tf_table = tf_table.reset_index(drop=True)
 
