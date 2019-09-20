@@ -93,7 +93,7 @@ def main():
         diff_dir = "{}/{}/deseq2".format(args.out_dir, dataset)
         os.system("mkdir -p {}".format(diff_dir))
         diff_prefix = "{}/{}.diff".format(diff_dir, dataset)
-        if False:
+        if True:
             run_sequential_deseq2(mat_pc_filt_files[1], diff_prefix)
 
     # set up for gene sets
@@ -146,13 +146,13 @@ def main():
             background_file=organotypic_background_file)
 
     # build joint table for TFs
-    tf_dir = "{}/tfs".format(args.out_dir)
+    tf_dir = "{}/genes.all".format(args.out_dir)
     os.system("mkdir -p {}".format(tf_dir))
 
     # load in lcm TPMs
     lcm_tpms = "{}/lcm/matrices/tpms.pc.mat.txt.gz".format(args.out_dir)
     tf_table = pd.read_csv(lcm_tpms, sep="\t")
-    tf_table = tf_table[tf_table["gene_id"].isin(tfs["ID"])]
+    #tf_table = tf_table[tf_table["gene_id"].isin(tfs["ID"])]
     tf_table = tf_table.set_index("gene_id")
     tf_table.columns = ["LCM.tpm.basal", "LCM.tpm.suprabasal"]
     tf_table["LCM.tpm.max"] = np.max(tf_table.values, axis=1)
